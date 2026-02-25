@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MCSR Seed Scrim</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+
+  <main class="wrap">
+    <header class="top">
+      <div>
+        <h1>MCSR Seed Scrim</h1>
+        <p class="sub">
+          Pull a random seed from an MCSR Ranked match without spoilers. Run it. Then reveal the original run + VOD to compare.
+        </p>
+      </div>
+
+      <div class="pill">
+        <span class="dot" id="apiDot" aria-hidden="true"></span>
+        <span id="apiText">API: idle</span>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="cardHead">
+        <h2>How it works</h2>
+      </div>
+      <ol class="how">
+        <li>Press <b>Get seed</b>. You will only see the seed(s).</li>
+        <li>Play the seed like a normal run (stop your timer at credits).</li>
+        <li>Press <b>Completed</b> to reveal the original match: runner, time, splits, and a synced Twitch VOD embed.</li>
+      </ol>
+      <p class="note">
+        Spoiler rule: until you press <b>Completed</b>, this page does not show the runner name, time, rank, or any match metadata.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="cardHead row">
+        <h2>Filters</h2>
+        <button class="ghost" id="toggleFilters" type="button">Hide</button>
+      </div>
+
+      <div id="filters">
+        <div class="grid2">
+          <label class="field">
+            <span>Max time (minutes)</span>
+            <input id="maxMinutes" type="number" min="1" max="60" value="10" />
+          </label>
+
+          <label class="field">
+            <span>Match type</span>
+            <select id="matchType">
+              <option value="2" selected>Ranked (2)</option>
+              <option value="1">Casual (1)</option>
+              <option value="3">Private (3)</option>
+              <option value="4">Event (4)</option>
+              <option value="any">Any</option>
+            </select>
+          </label>
+
+          <label class="check">
+            <input id="requireVod" type="checkbox" checked />
+            <span>Require VOD</span>
+          </label>
+
+          <label class="check">
+            <input id="excludeForfeitDecay" type="checkbox" checked />
+            <span>Exclude forfeit/decay</span>
+          </label>
+        </div>
+
+        <div class="hint">
+          Matching is done by sampling recent matches and filtering locally. This keeps it backend-free.
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead">
+        <h2>Seed</h2>
+      </div>
+
+      <div class="seedBox" id="seedBox">
+        <div class="seedEmpty" id="seedEmpty">No seed loaded.</div>
+
+        <div class="seedVals hidden" id="seedVals">
+          <div class="seedRow">
+            <span class="k">Overworld</span>
+            <code class="v" id="seedOverworld">—</code>
+            <button class="mini" data-copy="#seedOverworld" type="button">Copy</button>
+          </div>
+
+          <div class="seedRow">
+            <span class="k">Nether</span>
+            <code class="v" id="seedNether">—</code>
+            <button class="mini" data-copy="#seedNether" type="button">Copy</button>
+          </div>
+
+          <div class="seedRow">
+            <span class="k">The End</span>
+            <code class="v" id="seedEnd">—</code>
+            <button class="mini" data-copy="#seedEnd" type="button">Copy</button>
+          </div>
+
+          <div class="seedRow">
+            <span class="k">RNG</span>
+            <code class="v" id="seedRng">—</code>
+            <button class="mini" data-copy="#seedRng" type="button">Copy</button>
+          </div>
+
+          <div class="seedWarn">
+            If a field is “—”, that match did not expose that seed field via the public API response used here.
+          </div>
+        </div>
+      </div>
+
+      <div class="btnRow">
+        <button class="primary" id="btnGetSeed" type="button">Get seed</button>
+        <button class="danger" id="btnCompleted" type="button" disabled>Completed</button>
+        <button class="ghost" id="btnReset" type="button" disabled>Reset</button>
+      </div>
+
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="card hidden" id="revealCard">
+      <div class="cardHead">
+        <h2>Reveal</h2>
+      </div>
+
+      <div class="revealGrid">
+        <div class="stats">
+          <div class="statRow">
+            <span class="k">Match</span>
+            <span class="v" id="matchId">—</span>
+          </div>
+          <div class="statRow">
+            <span class="k">Runner(s)</span>
+            <span class="v" id="players">—</span>
+          </div>
+          <div class="statRow">
+            <span class="k">Winning time</span>
+            <span class="v" id="winTime">—</span>
+          </div>
+          <div class="statRow">
+            <span class="k">Date</span>
+            <span class="v" id="matchDate">—</span>
+          </div>
+
+          <hr class="sep" />
+
+          <h3>Splits / timelines</h3>
+          <div class="tableWrap">
+            <table class="tbl" id="splitsTable">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Type</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="small">
+            Timelines are provided as identifiers + timestamps (ms) by the match detail endpoint. :contentReference[oaicite:1]{index=1}
+          </div>
+        </div>
+
+        <div class="vod">
+          <h3>VOD (synced)</h3>
+          <div class="vodMeta" id="vodMeta">—</div>
+          <div class="vodFrame" id="vodFrame">
+            <div class="vodEmpty">No VOD available for this match.</div>
+          </div>
+          <div class="small">
+            Twitch embeds require <code>parent=yourdomain</code> (your hostname). :contentReference[oaicite:2]{index=2}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div class="small">
+        Data source: MCSR Ranked public API endpoints (no auth). :contentReference[oaicite:3]{index=3}
+      </div>
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
